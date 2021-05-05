@@ -22,8 +22,12 @@ func (c *Connection) Channel() (*Channel, error) {
 		return nil, err
 	}
 
+	ch.Confirm(false)
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation))
+
 	channel := &Channel{
-		Channel: ch,
+		Channel:     ch,
+		ConfirmChan: confirms,
 	}
 
 	go func() {
@@ -46,6 +50,13 @@ func (c *Connection) Channel() (*Channel, error) {
 				if err == nil {
 					debug("channel recreate success")
 					channel.Channel = ch
+
+					err = ch.Confirm(false)
+					if err == nil {
+						confirms := ch.NotifyPublish(make(chan amqp.Confirmation))
+						channel.ConfirmChan = confirms
+					}
+
 					break
 				}
 
@@ -102,7 +113,8 @@ func Dial(url string) (*Connection, error) {
 // Channel amqp.Channel wapper
 type Channel struct {
 	*amqp.Channel
-	closed int32
+	closed      int32
+	ConfirmChan chan amqp.Confirmation
 }
 
 // IsClosed indicate closed by developer
